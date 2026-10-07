@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TechnicalDraw - A4 da GLB (2 click)</title>
+  <style>
+    body{font-family:Arial;margin:0;background:#f6f6f6}
+    .wrap{max-width:1100px;margin:20px auto;padding:0 16px}
+    .panel{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:12px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .col{flex:1;min-width:220px}
+    label{font-size:12px;display:block;margin-bottom:6px}
+    input,select,button{padding:8px;font-size:14px;width:100%}
+    #view3d{width:100%;height:520px;border:1px solid #ddd;border-radius:8px;background:#fafafa;display:block}
+    .btnrow{display:flex;gap:10px;flex-wrap:wrap}
+    .btnrow button{width:auto}
+    .primary{background:#111;color:#fff;border:1px solid #111}
+    .status{font-size:12px;margin-top:8px;color:#222}
+    a{display:inline-block;padding:8px 10px;border:1px solid #111;border-radius:6px;text-decoration:none;color:#111}
+    .small{font-size:12px;color:#444;margin-top:8px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h2 style="margin:0 0 10px;font-size:18px;">Tavola A4 (TOP/FRONT/RIGHT) da GLB Ragnar + 2 click</h2>
+
+      <div class="row">
+        <div class="col">
+          <label>Modello 3D (GLB esportato da ragnar.build)</label>
+          <input id="glb" type="file" accept=".glb,model/gltf-binary"/>
+          <div class="status" id="pickStatus">Carica il GLB e fai 2 click sul modello (segmento con misura nota).</div>
+          <div class="small">
+            Suggerimento: dopo il deploy puoi forzare l'API con<br/>
+            <code>?api=https://tuo-backend</code>
+          </div>
+        </div>
+
+        <div class="col">
+          <label>Quota reale (mm) del segmento selezionato</label>
+          <input id="realMM" type="number" min="0" step="0.01" value="100"/>
+
+          <label style="margin-top:10px;">Titolo (cartiglio)</label>
+          <input id="title" type="text" value="Disegno CAD da Ragnar"/>
+
+          <label style="margin-top:10px;">Output</label>
+          <select id="format">
+            <option value="pdf">PDF</option>
+            <option value="png">PNG</option>
+            <option value="svg">SVG</option>
+          </select>
+
+          <div class="btnrow" style="margin-top:12px;">
+            <button id="resetBtn">Reset punti</button>
+            <button id="genBtn" class="primary">Genera tavola A4</button>
+          </div>
+
+          <div class="status" id="status"></div>
+          <div style="margin-top:10px;display:none" id="dlBox">
+            <a id="dl" href="#" download>Scarica</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <canvas id="view3d"></canvas>
+    </div>
+  </div>
+
+  <script src="./config.js"></script>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+
+const urlParams = new URLSearchParams(location.search);
+const API = urlParams.get('api') || window.TECHDRAW_API_BASE || 'http://localhost:8000';
+
+const glb = document.getElementById('glb');
+const canvas = document.getElementById('view3d');
+
+const pickStatus = document.getElementById('pickStatus');
+const status = document.getElementById('status');
+
+const realMM = document.getElementById('realMM');
+const titleEl = document.getElementById('title');
+const formatEl = document.getElementById('format');
+
+const resetBtn = document.getElementById('resetBtn');
+const genBtn = document.getElementById('genBtn');
+
+const dlBox = document.getElementById('dlBox');
+const dl = document.getElementById('dl');
+
+function setStatus(t){ status.textContent = t; }
+function setPick(t){ pickStatus.textContent = t; }
+
+let renderer, scene, camera, controls;
+let modelRoot = null;
+
+let picked = [];      // 2 punti 3D in world coords
+let pickSpheres = []; // pallini rossi
+
+function init3D(){
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+
+  renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  renderer.setSize(w, h, false);
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xfafafa);
+
+  camera = new THREE.PerspectiveCamera(45, w/h, 0.001, 1000);
+  camera.position.set(0.8, 0.6, 1.2);
+
+  controls = new OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+
+  const light1 = new THREE.DirectionalLight(0xffffff, 1.0);
+  light1.position.set(2,2,2);
+  scene.add(light1);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+  (function animate(){
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  })();
+}
+
+function clearPicks(){
+  picked = [];
+  pickSpheres.forEach(s => scene.remove(s));
+  pickSpheres = [];
+  setPick('Fai 2 click sul modello per la quota.');
+  dlBox.style.display = 'none';
+}
+
+function addPickSphere(pos){
+  const geo = new THREE.SphereGeometry(0.006, 16, 16);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  const s = new THREE.Mesh(geo, mat);
+  s.position.copy(pos);
+  scene.add(s);
+  pickSpheres.push(s);
+}
+
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+
+canvas.addEventListener('click', (e)=>{
+  if(!modelRoot) return;
+
+  const rect = canvas.getBoundingClientRect();
+  ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  ndc.y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObject(modelRoot, true);
+  if(!hits.length) return;
+
+  if(picked.length >= 2) clearPicks();
+
+  const p = hits[0].point.clone();
+  picked.push(p);
+  addPickSphere(p);
+
+  if(picked.length === 1) setPick('Punto 1 OK. Seleziona punto 2.');
+  if(picked.length === 2){
+    const d = picked[0].distanceTo(picked[1]);
+    setPick(`Punti 2/2 OK. Distanza (unità modello): ${d.toFixed(6)}. Inserisci i mm e genera.`);
+  }
+});
+
+glb.addEventListener('change', ()=>{
+  clearPicks();
+  if(modelRoot){ scene.remove(modelRoot); modelRoot = null; }
+
+  const f = glb.files?.[0];
+  if(!f) return;
+
+  const url = URL.createObjectURL(f);
+  const loader = new GLTFLoader();
+  loader.load(url, (gltf)=>{
+    modelRoot = gltf.scene;
+
+    // NON scalare / traslare per non rompere le coordinate inviate al backend
+    scene.add(modelRoot);
+
+    setStatus('GLB caricato. Ora fai 2 click sul modello.');
+  }, undefined, (err)=>{
+    console.error(err);
+    setStatus('Errore caricamento GLB.');
+  });
+});
+
+resetBtn.addEventListener('click', clearPicks);
+
+genBtn.addEventListener('click', async ()=>{
+  const f = glb.files?.[0];
+  if(!f) return setStatus('Carica il GLB esportato da ragnar.build.');
+  if(picked.length !== 2) return setStatus('Seleziona 2 punti sul modello (2 click).');
+
+  const mm = Number(realMM.value);
+  if(!Number.isFinite(mm) || mm <= 0) return setStatus('Quota mm non valida.');
+
+  const fd = new FormData();
+  fd.append('model_file', f);
+
+  fd.append('p1x', String(picked[0].x));
+  fd.append('p1y', String(picked[0].y));
+  fd.append('p1z', String(picked[0].z));
+  fd.append('p2x', String(picked[1].x));
+  fd.append('p2y', String(picked[1].y));
+  fd.append('p2z', String(picked[1].z));
+
+  fd.append('real_mm', String(mm));
+  fd.append('out_format', formatEl.value);
+  fd.append('title', titleEl.value || 'Disegno CAD');
+
+  setStatus('Generazione tavola…');
+
+  try{
+    const res = await fetch(API + '/api/generate', { method:'POST', body: fd });
+    if(!res.ok) throw new Error(await res.text());
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    dl.href = url;
+    dl.download = `tavola.${formatEl.value}`;
+    dl.textContent = `Scarica tavola (${formatEl.value.toUpperCase()})`;
+    dlBox.style.display = 'block';
+    setStatus('Fatto.');
+  } catch(e){
+    setStatus('Errore: ' + e.message);
+  }
+});
+
+window.addEventListener('resize', ()=>{
+  const rect = canvas.getBoundingClientRect();
+  renderer.setSize(rect.width, rect.height, false);
+  camera.aspect = rect.width / rect.height;
+  camera.updateProjectionMatrix();
+});
+
+init3D();
+</script>
+</body>
+</html>

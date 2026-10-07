@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: technicaldraw-api
+    env: docker
+    rootDir: backend
+    autoDeploy: true
