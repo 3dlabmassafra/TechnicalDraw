@@ -4,6 +4,7 @@ libpangocairo-1.0-0
 libgl1
 libegl1
 libosmesa6
+libglu1-mesa
 libglib2.0-0
 libxext6
 libsm6
