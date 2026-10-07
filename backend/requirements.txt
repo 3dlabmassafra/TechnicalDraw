@@ -1,10 +1,10 @@
-fastapi==0.115.2
-uvicorn[standard]==0.30.6
-python-multipart==0.0.18
 numpy==2.1.1
 opencv-python-headless==4.10.0.84
 cairosvg==2.7.1
+
 trimesh==4.4.3
 pyrender==0.1.45
 PyOpenGL==3.1.7
 pyglet==1.5.27
+
+python-multipart>=0.0.18
