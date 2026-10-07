@@ -1,8 +1,7 @@
 libcairo2
 libpango-1.0-0
 libpangocairo-1.0-0
-libgl1-mesa-dri
-libgl1-mesa-glx
+libgl1
 libegl1
 libosmesa6
 libglib2.0-0
