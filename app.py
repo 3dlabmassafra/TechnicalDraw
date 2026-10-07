@@ -9,7 +9,7 @@ os.environ.setdefault("PYOPENGL_PLATFORM", "osmesa")
 # Importa la tua app FastAPI (che contiene gli endpoint /api/generate ecc.)
 from backend.main import app as fastapi_app
 
-# Aggiungi una home page
+# Aggiungi una home page all'app FastAPI
 @fastapi_app.get("/", response_class=HTMLResponse)
 def home():
     return """
@@ -31,7 +31,7 @@ def home():
     """
 
 # Crea una semplice UI Gradio
-with gr.Blocks(title="TechnicalDraw") as demo:
+with gr.Blocks(title="TechnicalDraw", css="footer {visibility: hidden}") as demo:
     gr.Markdown("""
     # TechnicalDraw API
     
@@ -50,12 +50,10 @@ with gr.Blocks(title="TechnicalDraw") as demo:
     </code>
     """)
 
-# Integra FastAPI con Gradio
+# Integra FastAPI con Gradio (le API restano su /api/*)
 app = gr.mount_gradio_app(fastapi_app, demo, path="/ui")
 
-# Punto di ingresso per Hugging Face Spaces
+# Punto di ingresso per Hugging Face Spaces - usa launch() non uvicorn
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "7860"))
-    # Lanciamo l'app combinata (FastAPI + Gradio)
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    # HF Spaces gestisce già la porta, non specifichiamo nulla
+    demo.launch()
