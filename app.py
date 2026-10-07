@@ -30,8 +30,8 @@ def home():
     </html>
     """
 
-# Crea una semplice UI Gradio
-with gr.Blocks(title="TechnicalDraw", css="footer {visibility: hidden}") as demo:
+# Crea una semplice UI Gradio (css spostato in launch)
+with gr.Blocks(title="TechnicalDraw") as demo:
     gr.Markdown("""
     # TechnicalDraw API
     
@@ -53,7 +53,14 @@ with gr.Blocks(title="TechnicalDraw", css="footer {visibility: hidden}") as demo
 # Integra FastAPI con Gradio (le API restano su /api/*)
 app = gr.mount_gradio_app(fastapi_app, demo, path="/ui")
 
-# Punto di ingresso per Hugging Face Spaces - usa launch() non uvicorn
+# Punto di ingresso per Hugging Face Spaces
 if __name__ == "__main__":
-    # HF Spaces gestisce già la porta, non specifichiamo nulla
-    demo.launch()
+    # HF Spaces gestisce già la porta tramite variabile d'ambiente
+    port = int(os.environ.get("PORT", "7860"))
+    # css spostato in launch() per Gradio 6.0
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=port,
+        css="footer {visibility: hidden}",
+        app=app  # Passiamo l'app combinata FastAPI+Gradio
+    )
