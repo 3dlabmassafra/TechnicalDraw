@@ -253,10 +253,10 @@ function describe(drawing, layout, features, p) {
     `quota reale ${formatMm(p.refMm)} mm (${axis})`,
     `misure ricavate: ${dims}`,
   ];
-  if (s.fori.length) {
-    const d = [...new Set(s.fori.map((h) => formatMm(h.d)))].join(' / ');
-    parts.push(`${s.fori.length} fori Ø ${d} mm`);
-  }
+  const circles = s.fori.filter((h) => h.tipo === 'circle');
+  const slots = s.fori.length - circles.length;
+  if (circles.length) parts.push(`${circles.length} fori Ø ${[...new Set(circles.map((h) => formatMm(h.d)))].join(' / ')} mm`);
+  if (slots) parts.push(`${slots} asole`);
   parts.push(`segmentazione: ${features.method === 'color' ? 'colore' : 'GrabCut (lenta)'}`);
   if (!layout.fits) parts.push('attenzione: il disegno non entra in A4 nemmeno a 1:50. Verifica la quota inserita.');
   if (features.warnings && features.warnings.length) parts.push(...features.warnings);

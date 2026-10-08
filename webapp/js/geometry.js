@@ -364,7 +364,7 @@ function buildExtruded(f, s, mode, depthPct) {
         at: [h.u + h.r * Math.SQRT1_2, h.v + h.r * Math.SQRT1_2],
         dx: 7,
         dy: -7 - 2 * i,
-        text: 'Ø ' + formatMm(h.d),
+        text: h.type === 'circle' ? 'Ø ' + formatMm(h.d) : `asola ${formatMm(h.umax - h.umin)} × ${formatMm(h.vmax - h.vmin)}`,
       });
     });
     const xHoles = uniqueBy(hOrder, 'u').slice(0, 4).sort((a, b) => a.u - b.u);
@@ -463,6 +463,52 @@ function buildExtruded(f, s, mode, depthPct) {
   return { mode, ext, views, summary, depthMm: T };
 }
 
+/** Punto dentro un poligono (ray casting). */
+export function pointInPoly(x, y, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i];
+    const [xj, yj] = pts[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Gate sulle feature della foto: contorno semplice, area positiva, fori dentro il contorno. */
+export function validateFeatures(f) {
+  const issues = [];
+  if (!f || !Array.isArray(f.outline) || f.outline.length < 3) issues.push('contorno non valido');
+  else {
+    let area2 = 0;
+    for (let i = 0; i < f.outline.length; i++) {
+      const [x0, y0] = f.outline[i];
+      const [x1, y1] = f.outline[(i + 1) % f.outline.length];
+      area2 += x0 * y1 - x1 * y0;
+    }
+    if (!(Math.abs(area2) > 0)) issues.push('area nulla');
+    for (const h of f.holes || []) {
+      if (!pointInPoly(h.cx, h.cy, f.outline)) issues.push('foro fuori dal contorno');
+      if (h.type === 'circle' && !(h.d > 0)) issues.push('diametro di foro non valido');
+    }
+  }
+  return issues;
+}
+
+/** Gate sul disegno: valori finiti, quote presenti, geometria con estensioni positive. */
+export function validateDrawing(d) {
+  const issues = [];
+  for (const [a, b] of Object.values(d.ext)) if (!(Number.isFinite(a) && Number.isFinite(b) && b > a)) issues.push('estensioni non valide');
+  for (const [k, v] of Object.entries(d.summary)) if (typeof v === 'number' && !Number.isFinite(v)) issues.push(`misura non finita (${k})`);
+  for (const view of Object.values(d.views)) {
+    for (const dim of view.dims) if (typeof dim.text !== 'string' || dim.text.length === 0) issues.push('quota senza testo');
+    for (const p of view.polys) for (const [x, y] of p.pts) if (!(Number.isFinite(x) && Number.isFinite(y))) issues.push('vertice non finito');
+  }
+  return [...new Set(issues)];
+}
+
+const modelError = (issues) =>
+  `Modello non valido (${issues.join('; ')}). Prova a ritagliare l’area sull’oggetto o a usare un’altra foto.`;
+
 /**
  * Costruisce il disegno (mm) a partire dalle feature della foto.
  * @param {object} features  output di segmentPhoto()
@@ -475,6 +521,8 @@ export function buildDrawing(features, opts) {
   if (!(refMm > 0)) throw new Error('La quota di riferimento deve essere maggiore di zero.');
   if (refAxis !== 'h' && refAxis !== 'v') throw new Error('Asse della quota non valido.');
   if (!(depthPct > 0 && depthPct <= 500)) throw new Error('Profondità non valida (1–500 %).');
+  const featureIssues = validateFeatures(features);
+  if (featureIssues.length) throw new Error(modelError(featureIssues));
 
   const { bbox } = features;
   const pxRef = refAxis === 'h' ? bbox.x1 + 1 - bbox.x0 : bbox.y1 + 1 - bbox.y0;
@@ -488,5 +536,7 @@ export function buildDrawing(features, opts) {
   drawing.summary.refAxis = refAxis;
   drawing.summary.refMm = refMm;
   drawing.summary.mmPerPx = s;
+  const issues = validateDrawing(drawing);
+  if (issues.length) throw new Error(modelError(issues));
   return drawing;
 }

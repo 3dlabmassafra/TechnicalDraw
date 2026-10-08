@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadCv } from './helpers/cv.mjs';
-import { bracketScene, shaftScene, plateScene } from './helpers/synth.mjs';
+import { bracketScene, shaftScene, plateScene, slotScene } from './helpers/synth.mjs';
 import { segmentPhoto } from '../../webapp/js/segment.js';
 import { buildDrawing, formatMm, simplifyOpen, stepLevels } from '../../webapp/js/geometry.js';
 import { renderSheet } from '../../webapp/js/sheet.js';
@@ -142,4 +142,28 @@ test('tavola SVG: viste, quote e cartiglio senza valori mancanti', () => {
     assert.ok(svg.includes(`${formatMm(o.refMm)} mm`), `${mode}: quota di riferimento nel cartiglio`);
     assert.ok(layout.k > 0 && layout.fits, `${mode}: scala ${layout.k}`);
   }
+});
+
+test('asola: foro non circolare quotato con ingombro (non come Ø) accanto al foro Ø 6', () => {
+  const f = featuresOf(slotScene());
+  const d = buildDrawing(f, { mode: 'plate', refAxis: 'h', refMm: 120, depthPct: 5 });
+  const labels = d.views.TOP.labels.map((l) => l.text);
+  const slot = labels.find((t) => t.startsWith('asola '));
+  assert.ok(slot, `etichette: ${JSON.stringify(labels)}`);
+  const m = slot.match(/asola ([\d.]+) × ([\d.]+)/);
+  near(Number(m[1]), 28, 0.05, 1.0);
+  near(Number(m[2]), 8, 0.1, 1.0);
+  // Foro vero Ø 6 misurato 5.9 (±2 %): stessa tolleranza degli altri test sui fori.
+  const hole = labels.find((t) => t.startsWith('Ø '));
+  assert.ok(hole, `manca il foro circolare in ${JSON.stringify(labels)}`);
+  near(Number(hole.slice(2)), 6, 0.03);
+});
+
+test('gate di validità: contorno vuoto o area nulla vengono rifiutati con messaggio chiaro', () => {
+  const f = featuresOf(bracketScene());
+  assert.throws(() => buildDrawing({ ...f, outline: [] }, { mode: 'prism', refAxis: 'v', refMm: 40, depthPct: 50 }), /Modello non valido/);
+  assert.throws(
+    () => buildDrawing({ ...f, outline: [[0, 0], [10, 0], [20, 0]] }, { mode: 'prism', refAxis: 'v', refMm: 40, depthPct: 50 }),
+    /Modello non valido/,
+  );
 });

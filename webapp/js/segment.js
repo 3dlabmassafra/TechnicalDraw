@@ -235,6 +235,7 @@ function extractFeatures(cv, fgRaw, W, H, roi, own) {
   const cd = Float64Array.from(cents.data64F);
   const minHoleArea = Math.max(12, MIN_HOLE_FRACTION * silArea);
   const holes = [];
+  let lab32 = null; // etichette dei componenti, copiate in JS una sola volta
   for (let l = 1; l < nLabels; l++) {
     const area = sd[l * 5 + 4];
     if (area < minHoleArea) continue;
@@ -250,8 +251,11 @@ function extractFeatures(cv, fgRaw, W, H, roi, own) {
       holes.push({ type: 'circle', cx, cy, d: 2 * Math.sqrt(area / Math.PI) });
       continue;
     }
-    const lm = own(new cv.Mat());
-    cv.compare(labels, new cv.Scalar(l), lm, cv.CMP_EQ);
+    // Maschera del componente costruita in JS: cv.compare non accetta uno Scalar in OpenCV.js.
+    if (!lab32) lab32 = Int32Array.from(labels.data32S);
+    const m8 = new Uint8Array(W * H);
+    for (let i = 0; i < m8.length; i++) m8[i] = lab32[i] === l ? 255 : 0;
+    const lm = own(cv.matFromArray(H, W, cv.CV_8UC1, m8));
     const lvec = own(new cv.MatVector());
     const lh = own(new cv.Mat());
     cv.findContours(lm, lvec, lh, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE);

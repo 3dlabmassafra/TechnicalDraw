@@ -98,3 +98,12 @@ export function plateScene(opts = {}) {
     pointInPoly(X, Y, outline) && !holes.some((o) => Math.hypot(X - o.x, Y - o.y) < o.d / 2);
   return { ...renderScene({ w: 800, h: 600, ppm, ox: 160, oy: 420, inside, ...opts }), outline, holes, dims: { W: 120, L: 60 } };
 }
+
+/** Piastra 120 × 60 con un'asola passante 28 × 8 mm (centro 50, 30) e un foro Ø 6 (100, 45). */
+export function slotScene(opts = {}) {
+  const outline = [[0, 0], [120, 0], [120, 60], [0, 60]];
+  const ppm = 4;
+  const distToSlot = (X, Y) => Math.hypot(X - Math.max(40, Math.min(60, X)), Y - 30); // segmento 40–60 con raggio 4
+  const inside = (X, Y) => pointInPoly(X, Y, outline) && distToSlot(X, Y) > 4 && Math.hypot(X - 100, Y - 45) > 3;
+  return { ...renderScene({ w: 800, h: 600, ppm, ox: 160, oy: 420, inside, ...opts }), outline, dims: { W: 120, L: 60 } };
+}
