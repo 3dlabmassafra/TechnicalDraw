@@ -1,0 +1,6 @@
+{
+  "name": "technicaldraw-webapp",
+  "private": true,
+  "description": "Webapp statica: foto -> tavola tecnica A4 (elaborazione nel browser).",
+  "type": "module"
+}

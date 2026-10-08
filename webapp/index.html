@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TechnicalDraw · foto → tavola tecnica A4</title>
+  <meta name="description" content="Da una foto ricava una tavola tecnica A4 con viste e quote. Basta una sola quota reale: il resto è in proporzione.">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Foto → tavola tecnica</h1>
+    <p>Carica una foto, trascina un rettangolo attorno all’oggetto e inserisci <strong>una sola quota reale</strong>. Tutte le altre misure vengono scalate in proporzione.</p>
+  </header>
+
+  <main class="grid">
+    <section class="panel" aria-labelledby="h-photo">
+      <h2 id="h-photo">1 · Foto</h2>
+      <label id="drop" class="drop">
+        <input id="file" type="file" accept="image/*">
+        <span>Trascina qui una foto oppure <u>scegli un file</u></span>
+      </label>
+      <canvas id="photo" hidden aria-label="Foto: trascina un rettangolo attorno all’oggetto"></canvas>
+      <p class="hint">Trascina sulla foto per selezionare l’oggetto (rettangolo arancione). Il contorno verde mostra cosa è stato riconosciuto.</p>
+      <button id="roi-reset" type="button" class="ghost" disabled>Ripristina area predefinita</button>
+    </section>
+
+    <section class="panel" aria-labelledby="h-set">
+      <h2 id="h-set">2 · Impostazioni</h2>
+      <fieldset>
+        <legend>Tipo di oggetto</legend>
+        <label class="radio"><input type="radio" name="mode" value="round" checked> Rotazionale (tornito)</label>
+        <label class="radio"><input type="radio" name="mode" value="prism"> Profilo estruso (foto frontale)</label>
+        <label class="radio"><input type="radio" name="mode" value="plate"> Piastra piatta (foto dall’alto)</label>
+        <p id="mode-hint" class="hint"></p>
+      </fieldset>
+
+      <div class="row">
+        <label>Quota reale (mm)
+          <input id="ref-mm" type="text" inputmode="decimal" placeholder="es. 40" autocomplete="off">
+        </label>
+        <label>Misurata in
+          <select id="ref-axis">
+            <option value="h">orizzontale (Ø massimo)</option>
+            <option value="v">verticale (altezza)</option>
+          </select>
+        </label>
+      </div>
+
+      <label id="depth-field">Profondità o spessore (% della larghezza)
+        <input id="depth" type="text" inputmode="decimal" value="50">
+      </label>
+
+      <label>Titolo della tavola
+        <input id="title" type="text" value="Disegno" maxlength="60">
+      </label>
+
+      <button id="generate" type="button" class="primary" disabled>Genera tavola</button>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <section class="panel result" aria-labelledby="h-res">
+    <h2 id="h-res">3 · Tavola A4</h2>
+    <p id="info" class="info"></p>
+    <div id="sheet" class="sheet" aria-live="polite"></div>
+    <div class="actions">
+      <button id="dl-svg" type="button" disabled>Scarica SVG</button>
+      <button id="dl-png" type="button" disabled>Scarica PNG 300 dpi</button>
+      <button id="dl-pdf" type="button" disabled>Stampa / PDF A4</button>
+    </div>
+  </section>
+
+  <footer class="limits">
+    <h2>Limiti</h2>
+    <ul>
+      <li>Una foto mostra un solo punto di vista: le altre viste dipendono dal tipo di oggetto scelto.</li>
+      <li>La profondità (o lo spessore) è una percentuale della larghezza, non una misura: impostala in base a ciò che conosci del pezzo.</li>
+      <li>Le cavità interne non sono visibili nella silhouette; i fori sono riconosciuti solo dove lasciano vedere lo sfondo.</li>
+      <li>Una foto obliqua introduce prospettiva e distorce le misure: fotografa frontalmente o dall’alto, a fuoco, con sfondo uniforme.</li>
+    </ul>
+    <p>La foto resta nel tuo browser: l’elaborazione non invia immagini a nessun server. OpenCV.js viene caricato dalla CDN di jsDelivr quando apri una foto.</p>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "technicaldraw-webapp-tests",
+  "private": true,
+  "type": "module",
+  "description": "Test di unità e visivi per la webapp (node --test).",
+  "scripts": {
+    "test": "node --test",
+    "preview": "node render-preview.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@techstark/opencv-js": "4.10.0-release.1",
+    "pngjs": "^7.0.0",
+    "puppeteer-core": "^24.0.0"
+  }
+}
