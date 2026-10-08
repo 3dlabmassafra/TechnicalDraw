@@ -1,0 +1,323 @@
+/* Stili dell'app. Niente framework: una sola pagina statica per GitHub Pages. */
+:root {
+  --ink: #1b1f24;
+  --muted: #5b6470;
+  --line: #d8dde4;
+  --paper: #f5f7fa;
+  --accent: #1f6feb;
+  --accent-ink: #ffffff;
+  --warn: #b42318;
+  --radius: 10px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.top,
+.grid,
+.result,
+.limits {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.top {
+  padding-top: 28px;
+}
+
+.top h1 {
+  margin: 0 0 6px;
+  font-size: 1.8rem;
+  letter-spacing: -0.01em;
+}
+
+.top p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 70ch;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 20px;
+}
+
+@media (max-width: 880px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+
+.panel h2 {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+}
+
+.result {
+  margin-top: 18px;
+  padding-bottom: 8px;
+}
+
+.result.panel {
+  max-width: 1180px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 74px;
+  border: 2px dashed #9aa6b2;
+  border-radius: var(--radius);
+  padding: 14px;
+  text-align: center;
+  color: var(--muted);
+  cursor: pointer;
+  background: #fbfcfd;
+}
+
+.drop.over {
+  border-color: var(--accent);
+  background: #eef4ff;
+}
+
+.drop input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.drop u {
+  color: var(--accent);
+  text-underline-offset: 2px;
+}
+
+#photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #eceff3;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.hint {
+  margin: 8px 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+fieldset {
+  border: 0;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+legend {
+  font-weight: 600;
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.radio {
+  display: block;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.radio input {
+  margin-right: 8px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+label {
+  display: block;
+  font-size: 0.92rem;
+  margin-bottom: 12px;
+}
+
+input[type="text"],
+select {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  font: inherit;
+  color: inherit;
+  border: 1px solid #b9c2cc;
+  border-radius: 7px;
+  background: #fff;
+}
+
+input[type="text"]:focus,
+select:focus {
+  outline: 2px solid #9ec5ff;
+  border-color: var(--accent);
+}
+
+button {
+  font: inherit;
+  padding: 9px 14px;
+  border-radius: 8px;
+  border: 1px solid #b9c2cc;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  width: 100%;
+  margin-top: 4px;
+}
+
+button.ghost {
+  margin-top: 10px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent);
+  padding-left: 0;
+}
+
+.status {
+  min-height: 1.5em;
+  margin: 10px 0 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.status.error {
+  color: var(--warn);
+}
+
+.info {
+  margin: 0 0 12px;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.sheet {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px;
+  overflow: auto;
+}
+
+.sheet:empty {
+  display: none;
+}
+
+.sheet svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.limits {
+  margin-top: 28px;
+  padding-bottom: 36px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.limits h2 {
+  font-size: 1rem;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+
+.limits ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+/* Stampa / PDF: solo la tavola, su un foglio A4 orizzontale. */
+@page {
+  size: A4 landscape;
+  margin: 0;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  body > *:not(.result) {
+    display: none !important;
+  }
+
+  .result {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    max-width: none;
+    box-shadow: none;
+  }
+
+  .result > *:not(.sheet) {
+    display: none !important;
+  }
+
+  .sheet {
+    border: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .sheet svg {
+    width: 297mm !important;
+    height: 210mm !important;
+  }
+}
