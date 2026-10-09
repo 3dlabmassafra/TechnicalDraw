@@ -58,7 +58,7 @@
             <button id="genBtn" class="primary">Genera tavola A4</button>
           </div>
 
-          <div class="status" id="status">Caricamento in corso… Se questo messaggio non cambia, la libreria 3D non è stata caricata: controlla la connessione a cdn.jsdelivr.net e ricarica la pagina.</div>
+          <div class="status" id="status">Caricamento in corso… Se questo messaggio non cambia, ricarica la pagina con Ctrl+F5.</div>
           <div style="margin-top:10px;display:none" id="dlBox">
             <a id="dl" href="#" download>Scarica</a>
           </div>
@@ -72,11 +72,14 @@
   </div>
 
   <script src="./config.js"></script>
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three/build/three.module.js" } }
+  </script>
 
 <script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+import * as THREE from 'three';
+import { OrbitControls } from './vendor/three/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from './vendor/three/examples/jsm/loaders/GLTFLoader.js';
 
 const urlParams = new URLSearchParams(location.search);
 // Stesso server per default ('' = URL relativo); ?api=URL o config.js per altri host
@@ -225,7 +228,11 @@ glb.addEventListener('change', ()=>{
     scene.add(modelRoot);
     frameModel(modelRoot);
 
-    setStatus('GLB caricato. Ora fai 2 click sul modello.', 'ok');
+    let nMesh = 0;
+    modelRoot.traverse((o)=>{ if(o.isMesh) nMesh++; });
+    const bb = new THREE.Box3().setFromObject(modelRoot).getSize(new THREE.Vector3());
+    console.log('GLB: mesh', nMesh, 'dimensioni', bb);
+    setStatus(`GLB caricato (${nMesh} parti, dimensioni ${bb.x.toFixed(2)} × ${bb.y.toFixed(2)} × ${bb.z.toFixed(2)} unità). Ora fai 2 click sul modello.`, 'ok');
   }, undefined, (err)=>{
     console.error(err);
     setStatus('Errore caricamento GLB: il file non è un GLB valido.', 'err');
