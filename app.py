@@ -9,13 +9,22 @@ import uvicorn
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+
+class NoCacheStaticFiles(StaticFiles):
+    """File statici che il browser deve riconvalidare ad ogni caricamento (niente pagina vecchia in cache)."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
 # Importa la tua app FastAPI (che contiene gli endpoint /api/generate ecc.)
 from backend.main import app as fastapi_app
 
 FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
 
 # Frontend web servito dallo stesso server dell'API (es. http://host:7860/app/)
-fastapi_app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+fastapi_app.mount("/app", NoCacheStaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 
 # Home page dell'API
