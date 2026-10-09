@@ -77,7 +77,8 @@ import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/exampl
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
 
 const urlParams = new URLSearchParams(location.search);
-const API = urlParams.get('api') || window.TECHDRAW_API_BASE || 'http://localhost:8000';
+// Stesso server per default ('' = URL relativo); ?api=URL o config.js per altri host
+const API = (urlParams.get('api') ?? window.TECHDRAW_API_BASE ?? '').replace(/\/+$/, '');
 
 const glb = document.getElementById('glb');
 const canvas = document.getElementById('view3d');
@@ -141,8 +142,26 @@ function clearPicks(){
   dlBox.style.display = 'none';
 }
 
+let pickRadius = 0.006;
+
+// Centra la camera sul modello caricato, qualunque sia la sua scala
+function frameModel(root){
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+
+  pickRadius = maxDim * 0.01;
+  controls.target.copy(center);
+  camera.near = maxDim / 1000;
+  camera.far = maxDim * 100;
+  camera.position.copy(center).add(new THREE.Vector3(1, 0.7, 1.4).normalize().multiplyScalar(maxDim * 1.8));
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+
 function addPickSphere(pos){
-  const geo = new THREE.SphereGeometry(0.006, 16, 16);
+  const geo = new THREE.SphereGeometry(pickRadius, 16, 16);
   const mat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
   const s = new THREE.Mesh(geo, mat);
   s.position.copy(pos);
@@ -153,8 +172,13 @@ function addPickSphere(pos){
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 
+// Ignora i click che sono in realtà un trascinamento (rotazione della vista)
+let pointerDown = null;
+canvas.addEventListener('pointerdown', (e)=>{ pointerDown = { x: e.clientX, y: e.clientY }; });
+
 canvas.addEventListener('click', (e)=>{
   if(!modelRoot) return;
+  if(pointerDown && Math.hypot(e.clientX - pointerDown.x, e.clientY - pointerDown.y) > 4) return;
 
   const rect = canvas.getBoundingClientRect();
   ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -191,6 +215,7 @@ glb.addEventListener('change', ()=>{
 
     // NON scalare / traslare per non rompere le coordinate inviate al backend
     scene.add(modelRoot);
+    frameModel(modelRoot);
 
     setStatus('GLB caricato. Ora fai 2 click sul modello.');
   }, undefined, (err)=>{

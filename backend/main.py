@@ -4,6 +4,7 @@ os.environ.setdefault("PYOPENGL_PLATFORM", os.getenv("PYOPENGL_PLATFORM", "osmes
 import math
 import tempfile
 from datetime import date
+from html import escape as xml_escape
 
 import numpy as np
 import cv2
@@ -280,8 +281,8 @@ def _make_a4_three_views_svg(views, title: str, scale_s: float, dims_mm):
     tbX = margin
     tbY = pageH - margin - tbH
     tbW = pageW - 2 * margin
-    v1 = tbX + tbW * 0.70
-    v2 = tbX + tbW * 0.85
+    v1 = tbX + tbW * 0.62
+    v2 = tbX + tbW * 0.78
     h1 = tbY + tbH * 0.50
 
     today = date.today().isoformat()
@@ -293,7 +294,7 @@ def _make_a4_three_views_svg(views, title: str, scale_s: float, dims_mm):
       <line x1="{v2:.3f}" y1="{tbY:.3f}" x2="{v2:.3f}" y2="{tbY+tbH:.3f}" stroke="#000" stroke-width="0.25"/>
       <line x1="{tbX:.3f}" y1="{h1:.3f}" x2="{tbX+tbW:.3f}" y2="{h1:.3f}" stroke="#000" stroke-width="0.25"/>
 
-      <text x="{tbX+3:.3f}" y="{tbY+12:.3f}" font-size="6" font-family="Arial">Titolo: {title}</text>
+      <text x="{tbX+3:.3f}" y="{tbY+12:.3f}" font-size="6" font-family="Arial">Titolo: {xml_escape(title)}</text>
       <text x="{v1+3:.3f}" y="{tbY+12:.3f}" font-size="6" font-family="Arial">Scala: {scale_label}</text>
       <text x="{v2+3:.3f}" y="{tbY+12:.3f}" font-size="6" font-family="Arial">Data: {today}</text>
 
