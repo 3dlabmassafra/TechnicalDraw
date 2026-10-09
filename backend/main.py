@@ -88,12 +88,133 @@ def _view_rotation(view: str) -> np.ndarray:
         return R
     raise ValueError("view must be top|front|right")
 
+def _render_ortho_numpy(mesh: trimesh.Trimesh, W: int, H: int, view: str):
+    """Renderer di riserva senza OpenGL (solo CPU, numpy).
+
+    Campiona la superficie in proporzione all'area proiettata sulla vista,
+    fa lo z-buffer per pixel (vince il punto piu' vicino alla camera) e disegna
+    in nero le discontinuita' di profondita', le variazioni di normale e la
+    silhouette: il risultato e' un disegno a linee, come in una tavola tecnica.
+    Restituisce lo stesso formato di _render_ortho_pyrender.
+    """
+    m = mesh.copy()
+    m.apply_transform(_view_rotation(view))
+
+    bounds = m.bounds
+    extent = bounds[1] - bounds[0]
+    margin = 1.15
+    xmag = max(extent[0], 1e-6) * 0.5 * margin
+    ymag = max(extent[1], 1e-6) * 0.5 * margin
+    dist = max(extent) * 2.5 + 1e-3
+
+    # campioni per pixel: ~4 sulle facce visibili (proiettate sulla vista, asse z)
+    pixel_area = (2.0 * xmag / (W - 1)) * (2.0 * ymag / (H - 1))
+    # solo facce rivolte verso la camera: quelle posteriori sono nascoste in una mesh chiusa
+    nz = np.asarray(m.face_normals)[:, 2]
+    proj = np.asarray(m.area_faces) * np.clip(nz, 0.0, None)
+    counts = np.ceil(proj / pixel_area * 4.0).astype(np.int64)
+    max_total = 2_500_000
+    total = int(counts.sum())
+    if total > max_total:
+        counts = np.ceil(counts * (max_total / total)).astype(np.int64)
+    fidx = np.repeat(np.arange(len(counts)), counts)
+    if len(fidx) == 0:
+        raise ValueError("Nessuna faccia visibile da questa vista.")
+
+    # punti uniformi sul triangolo (coordinate baricentriche)
+    r1 = np.random.rand(len(fidx))
+    r2 = np.random.rand(len(fidx))
+    s = np.sqrt(r1)
+    tri = np.asarray(m.triangles)[fidx]
+    pts = ((1.0 - s)[:, None] * tri[:, 0]
+           + (s * (1.0 - r2))[:, None] * tri[:, 1]
+           + (s * r2)[:, None] * tri[:, 2])
+    nrm = np.asarray(m.face_normals)[fidx]
+
+    ui = np.rint((pts[:, 0] / xmag + 1.0) / 2.0 * (W - 1)).astype(np.int64)
+    vi = np.rint((1.0 - pts[:, 1] / ymag) / 2.0 * (H - 1)).astype(np.int64)
+    ok = (ui >= 0) & (ui < W) & (vi >= 0) & (vi < H)
+    ui, vi, z, nrm = ui[ok], vi[ok], pts[ok, 2], nrm[ok]
+
+    # z-buffer: per ogni pixel resta il punto piu' vicino alla camera (z massima)
+    key = vi * W + ui
+    order = np.lexsort((z, key))
+    ks = key[order]
+    last = np.r_[ks[1:] != ks[:-1], True]
+    sel = order[last]
+
+    cover_flat = np.zeros(H * W, dtype=bool)
+    cover_flat[key[sel]] = True
+    depth_flat = np.full(H * W, -1e9)
+    depth_flat[key[sel]] = z[sel]
+    normal_flat = np.zeros((H * W, 3))
+    normal_flat[key[sel]] = nrm[sel]
+    cover = cover_flat.reshape(H, W)
+    depth = depth_flat.reshape(H, W).astype(np.float32)
+    normal = normal_flat.reshape(H, W, 3)
+
+    # riempi i buchi interni (pochi pixel senza campione): chiusura morfologica
+    # e profondita' massima dei vicini (la superficie visibile e' quella piu' alta)
+    k3 = np.ones((3, 3), np.uint8)
+    closed = cv2.morphologyEx(cover.astype(np.uint8), cv2.MORPH_CLOSE, k3) > 0
+    neigh_max = cv2.dilate(depth, k3)
+    depth = np.where(cover, depth, np.where(closed, neigh_max, -1e9)).astype(np.float32)
+    cover = closed
+
+    # un pixel con un vicino piu' alto non puo' essere la superficie visibile: se un
+    # campione posteriore (es. parete interna di un foro) ha vinto per mancanza di
+    # campioni della faccia davanti, prende la profondita' massima del vicinato
+    depth_masked = np.where(cover, depth, -1e9).astype(np.float32)
+    dmax = cv2.dilate(depth_masked, k3)
+    replace = cover & (dmax > depth + 1e-6)
+    depth = np.where(replace, dmax, depth).astype(np.float32)
+    normal[replace] = 0.0
+    has_n = np.linalg.norm(normal, axis=2) > 0.5  # pixel con normale reale
+
+    depth_tol = max(extent) * 0.003   # salto di profondita' significativo
+    cos_tol = 0.95                    # ~18 gradi di variazione di normale
+    edge = np.zeros((H, W), dtype=bool)
+    for dy, dx in [(0, 1), (1, 0)]:
+        a = cover[:H - dy, :W - dx]
+        b = cover[dy:, dx:]
+        both = a & b
+        da, db = depth[:H - dy, :W - dx], depth[dy:, dx:]
+        na, nb = normal[:H - dy, :W - dx], normal[dy:, dx:]
+        nboth = has_n[:H - dy, :W - dx] & has_n[dy:, dx:]
+
+        jump = np.zeros_like(both)
+        jump[both] = np.abs(da[both] - db[both]) > depth_tol
+        bend = np.zeros_like(both)
+        pair = both & nboth
+        bend[pair] = np.einsum("ij,ij->i", na[pair], nb[pair]) < cos_tol
+        e = jump | bend
+        edge[:H - dy, :W - dx] |= e
+        edge[dy:, dx:] |= e
+
+        sil = a ^ b  # bordo tra pezzo e sfondo
+        edge[:H - dy, :W - dx] |= sil & a
+        edge[dy:, dx:] |= sil & b
+
+    edge = cv2.dilate(edge.astype(np.uint8), np.ones((2, 2), np.uint8)) > 0
+    img = np.full((H, W, 3), 255, dtype=np.uint8)
+    img[edge] = 0
+    rgba = np.dstack([img, np.full((H, W), 255, dtype=np.uint8)])
+    depth_out = np.where(cover, dist - depth, 0.0).astype(np.float32)
+    return {"color": rgba, "depth": depth_out, "xmag": xmag, "ymag": ymag, "dist": dist, "W": W, "H": H,
+            "holes_ok": False}  # Hough su disegni a linee produce troppi falsi cerchi
+
+
 def _render_ortho(mesh: trimesh.Trimesh, W: int, H: int, view: str):
-    # import qui: pyrender carica OpenGL/OSMesa e non deve bloccare l'avvio del server
+    # pyrender carica OpenGL/OSMesa: se non disponibile usa il renderer numpy
     try:
-        import pyrender
-    except (ImportError, OSError) as e:
-        raise HTTPException(503, f"Rendering 3D non disponibile su questo server (OpenGL/OSMesa mancante): {e}")
+        import pyrender  # noqa: F401
+    except (ImportError, OSError):
+        return _render_ortho_numpy(mesh, W, H, view)
+    return _render_ortho_pyrender(mesh, W, H, view)
+
+
+def _render_ortho_pyrender(mesh: trimesh.Trimesh, W: int, H: int, view: str):
+    import pyrender
 
     m = mesh.copy()
     m.apply_transform(_view_rotation(view))
@@ -134,7 +255,7 @@ def _edges_to_svg_paths(color_rgba, mm_per_unit: float, info, simplify=2.0):
     edges = cv2.Canny(gray, 50, 140)
     edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
 
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)  # RETR_LIST: include anche i fori (contorni interni)
 
     paths, all_pts = [], []
     for c in contours:
@@ -326,6 +447,39 @@ def _make_a4_three_views_svg(views, title: str, scale_s: float, dims_mm):
 """
     return svg
 
+def _svg_to_raster_or_pdf(svg: str, fmt: str) -> bytes:
+    """SVG -> PDF o PNG. Usa cairosvg (Docker, con libcairo) oppure, se non disponibile,
+    svglib + reportlab (PDF) e pypdfium2 (PNG), che non richiedono librerie di sistema."""
+    try:
+        import cairosvg
+        if fmt == "png":
+            return cairosvg.svg2png(bytestring=svg.encode("utf-8"), dpi=300)
+        return cairosvg.svg2pdf(bytestring=svg.encode("utf-8"))
+    except (ImportError, OSError):
+        pass
+
+    try:
+        import io
+        from svglib.svglib import svg2rlg
+        from reportlab.graphics import renderPDF
+    except ImportError as e:
+        raise HTTPException(503, f"Conversione PDF non disponibile su questo server: {e}")
+
+    pdf = renderPDF.drawToString(svg2rlg(io.BytesIO(svg.encode("utf-8"))))
+    if fmt == "pdf":
+        return pdf
+    try:
+        import pypdfium2 as pdfium
+    except ImportError as e:
+        raise HTTPException(503, f"Conversione PNG non disponibile su questo server: {e}")
+    import io as _io
+    doc = pdfium.PdfDocument(pdf)
+    img = doc[0].render(scale=300 / 72).to_pil()
+    buf = _io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
 @app.post("/api/generate")
 async def generate(
     model_file: UploadFile = File(...),
@@ -367,7 +521,7 @@ async def generate(
     for k in ["top", "front", "right"]:
         rinfo = _render_ortho(mesh, Wv, Hv, k)
         paths, bbox = _edges_to_svg_paths(rinfo["color"], mm_per_unit, rinfo, simplify=2.0)
-        holes = detect_holes_hough(rinfo["color"], rinfo, mm_per_unit)
+        holes = detect_holes_hough(rinfo["color"], rinfo, mm_per_unit) if rinfo.get("holes_ok", True) else []
         views[k] = {"paths": paths, "bbox": bbox, "holes": holes}
 
     pageW, pageH, margin, tbH = 297.0, 210.0, 10.0, 35.0
@@ -393,17 +547,9 @@ async def generate(
     out_format = out_format.lower().strip()
     if out_format == "svg":
         return Response(svg, media_type="image/svg+xml")
-    if out_format in ("png", "pdf"):
-        try:
-            import cairosvg
-        except (ImportError, OSError) as e:
-            raise HTTPException(503, f"Conversione PDF/PNG non disponibile su questo server (libcairo mancante): {e}")
-
     if out_format == "png":
-        png = cairosvg.svg2png(bytestring=svg.encode("utf-8"), dpi=300)
-        return Response(png, media_type="image/png")
+        return Response(_svg_to_raster_or_pdf(svg, "png"), media_type="image/png")
     if out_format == "pdf":
-        pdf = cairosvg.svg2pdf(bytestring=svg.encode("utf-8"))
-        return Response(pdf, media_type="application/pdf")
+        return Response(_svg_to_raster_or_pdf(svg, "pdf"), media_type="application/pdf")
 
     raise HTTPException(400, "Formato non supportato: usa png|pdf|svg")

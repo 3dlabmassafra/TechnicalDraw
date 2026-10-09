@@ -7,3 +7,8 @@ pyrender==0.1.45
 pyglet==1.5.27
 
 python-multipart>=0.0.18
+
+# conversione PDF/PNG senza libcairo (fallback)
+svglib
+reportlab
+pypdfium2
