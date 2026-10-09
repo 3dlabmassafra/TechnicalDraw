@@ -36,7 +36,8 @@ def _format_scale(s: float) -> str:
     return f"{s:.2g}:1"
 
 def _load_mesh_any(path: str) -> trimesh.Trimesh:
-    loaded = trimesh.load(path, force="scene")
+    # texture e materiali non servono per la tavola: li saltiamo (file molto piu' leggeri in memoria)
+    loaded = trimesh.load(path, force="scene", skip_materials=True, skip_texture=True)
     if isinstance(loaded, trimesh.Scene):
         dumped = loaded.dump(concatenate=True)
         if isinstance(dumped, list):
@@ -493,8 +494,8 @@ async def generate(
         raise HTTPException(400, "real_mm deve essere > 0")
 
     mb = await model_file.read()
-    if len(mb) > 80_000_000:
-        raise HTTPException(413, "GLB troppo grande (max ~80MB)")
+    if len(mb) > 300_000_000:
+        raise HTTPException(413, "GLB troppo grande (max ~300MB)")
 
     with tempfile.TemporaryDirectory() as td:
         glb_path = td + "/model.glb"
