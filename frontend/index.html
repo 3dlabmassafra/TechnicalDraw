@@ -16,7 +16,9 @@
     .btnrow{display:flex;gap:10px;flex-wrap:wrap}
     .btnrow button{width:auto}
     .primary{background:#111;color:#fff;border:1px solid #111}
-    .status{font-size:12px;margin-top:8px;color:#222}
+    .status{font-size:14px;margin-top:10px;color:#222;min-height:20px;line-height:1.4}
+    .status.err{color:#b00020;font-weight:bold}
+    .status.ok{color:#1b5e20;font-weight:bold}
     a{display:inline-block;padding:8px 10px;border:1px solid #111;border-radius:6px;text-decoration:none;color:#111}
     .small{font-size:12px;color:#444;margin-top:8px}
   </style>
@@ -30,7 +32,7 @@
         <div class="col">
           <label>Modello 3D (GLB esportato da ragnar.build)</label>
           <input id="glb" type="file" accept=".glb,model/gltf-binary"/>
-          <div class="status" id="pickStatus">Carica il GLB e fai 2 click sul modello (segmento con misura nota).</div>
+          <div class="status" id="pickStatus">Passo 1: carica il GLB. Passo 2: fai 2 click sul modello (sui due estremi di una quota nota). Passo 3: inserisci la quota in mm. Passo 4: genera.</div>
           <div class="small">
             Suggerimento: dopo il deploy puoi forzare l'API con<br/>
             <code>?api=https://tuo-backend</code>
@@ -56,7 +58,7 @@
             <button id="genBtn" class="primary">Genera tavola A4</button>
           </div>
 
-          <div class="status" id="status"></div>
+          <div class="status" id="status">Caricamento in corso… Se questo messaggio non cambia, la libreria 3D non è stata caricata: controlla la connessione a cdn.jsdelivr.net e ricarica la pagina.</div>
           <div style="margin-top:10px;display:none" id="dlBox">
             <a id="dl" href="#" download>Scarica</a>
           </div>
@@ -96,8 +98,14 @@ const genBtn = document.getElementById('genBtn');
 const dlBox = document.getElementById('dlBox');
 const dl = document.getElementById('dl');
 
-function setStatus(t){ status.textContent = t; }
+function setStatus(t, kind=''){ status.textContent = t; status.className = 'status ' + kind; }
+
+// Mostra a schermo anche gli errori JavaScript (altrimenti il pulsante sembra non fare nulla)
+window.addEventListener('error', (e)=> setStatus('Errore JavaScript: ' + (e.message || e), 'err'));
+window.addEventListener('unhandledrejection', (e)=> setStatus('Errore: ' + (e.reason?.message || e.reason), 'err'));
 function setPick(t){ pickStatus.textContent = t; }
+
+setStatus('Pronto. In attesa del GLB.');
 
 let renderer, scene, camera, controls;
 let modelRoot = null;
@@ -217,10 +225,10 @@ glb.addEventListener('change', ()=>{
     scene.add(modelRoot);
     frameModel(modelRoot);
 
-    setStatus('GLB caricato. Ora fai 2 click sul modello.');
+    setStatus('GLB caricato. Ora fai 2 click sul modello.', 'ok');
   }, undefined, (err)=>{
     console.error(err);
-    setStatus('Errore caricamento GLB.');
+    setStatus('Errore caricamento GLB: il file non è un GLB valido.', 'err');
   });
 });
 
@@ -228,11 +236,11 @@ resetBtn.addEventListener('click', clearPicks);
 
 genBtn.addEventListener('click', async ()=>{
   const f = glb.files?.[0];
-  if(!f) return setStatus('Carica il GLB esportato da ragnar.build.');
-  if(picked.length !== 2) return setStatus('Seleziona 2 punti sul modello (2 click).');
+  if(!f) return setStatus('Manca il GLB: caricalo nel campo "Modello 3D".', 'err');
+  if(picked.length !== 2) return setStatus(`Mancano ${2 - picked.length} click: fai 2 click sul modello (ora hai ${picked.length}/2 punti).`, 'err');
 
   const mm = Number(realMM.value);
-  if(!Number.isFinite(mm) || mm <= 0) return setStatus('Quota mm non valida.');
+  if(!Number.isFinite(mm) || mm <= 0) return setStatus('Quota mm non valida: inserisci un numero maggiore di 0.', 'err');
 
   const fd = new FormData();
   fd.append('model_file', f);
@@ -252,7 +260,11 @@ genBtn.addEventListener('click', async ()=>{
 
   try{
     const res = await fetch(API + '/api/generate', { method:'POST', body: fd });
-    if(!res.ok) throw new Error(await res.text());
+    if(!res.ok){
+      let msg = await res.text();
+      try { msg = JSON.parse(msg).detail || msg; } catch(_) {}
+      throw new Error(msg);
+    }
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -261,9 +273,9 @@ genBtn.addEventListener('click', async ()=>{
     dl.download = `tavola.${formatEl.value}`;
     dl.textContent = `Scarica tavola (${formatEl.value.toUpperCase()})`;
     dlBox.style.display = 'block';
-    setStatus('Fatto.');
+    setStatus('Fatto: tavola pronta da scaricare.', 'ok');
   } catch(e){
-    setStatus('Errore: ' + e.message);
+    setStatus('Errore durante la generazione: ' + e.message, 'err');
   }
 });
 
