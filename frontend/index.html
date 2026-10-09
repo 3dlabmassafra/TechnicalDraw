@@ -60,7 +60,11 @@
 
           <div class="status" id="status">Caricamento in corso… Se questo messaggio non cambia, ricarica la pagina con Ctrl+F5.</div>
           <div style="margin-top:10px;display:none" id="dlBox">
-            <a id="dl" href="#" download>Scarica</a>
+            <a id="dl" href="#" download target="_blank" rel="noopener">Scarica</a>
+            <div class="small" id="dlNote"></div>
+            <div style="margin-top:10px;display:none" id="previewBox">
+              <img id="preview" alt="Anteprima tavola" style="max-width:100%;border:1px solid #ddd;border-radius:6px;background:#fff"/>
+            </div>
           </div>
         </div>
       </div>
@@ -280,7 +284,18 @@ genBtn.addEventListener('click', async ()=>{
     dl.download = `tavola.${formatEl.value}`;
     dl.textContent = `Scarica tavola (${formatEl.value.toUpperCase()})`;
     dlBox.style.display = 'block';
-    setStatus('Fatto: tavola pronta da scaricare.', 'ok');
+    const pv = document.getElementById('previewBox');
+    const pimg = document.getElementById('preview');
+    const note = document.getElementById('dlNote');
+    if(formatEl.value === 'png' || formatEl.value === 'svg'){
+      pimg.src = url;
+      pv.style.display = 'block';
+      note.textContent = 'Anteprima sotto. Se il download non parte, usa il tasto Scarica (si apre in una nuova scheda).';
+    } else {
+      pv.style.display = 'none';
+      note.textContent = 'Il PDF non si mostra in anteprima: usa Scarica (si apre in una nuova scheda). Per vedere la tavola qui, scegli PNG.';
+    }
+    setStatus('Fatto: tavola pronta. Vedi anteprima o scarica.', 'ok');
   } catch(e){
     setStatus('Errore durante la generazione: ' + e.message, 'err');
   }
