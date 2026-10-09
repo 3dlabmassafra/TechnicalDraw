@@ -9,8 +9,6 @@ from html import escape as xml_escape
 import numpy as np
 import cv2
 import trimesh
-import pyrender
-import cairosvg
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import Response
@@ -91,6 +89,12 @@ def _view_rotation(view: str) -> np.ndarray:
     raise ValueError("view must be top|front|right")
 
 def _render_ortho(mesh: trimesh.Trimesh, W: int, H: int, view: str):
+    # import qui: pyrender carica OpenGL/OSMesa e non deve bloccare l'avvio del server
+    try:
+        import pyrender
+    except (ImportError, OSError) as e:
+        raise HTTPException(503, f"Rendering 3D non disponibile su questo server (OpenGL/OSMesa mancante): {e}")
+
     m = mesh.copy()
     m.apply_transform(_view_rotation(view))
 
@@ -389,6 +393,12 @@ async def generate(
     out_format = out_format.lower().strip()
     if out_format == "svg":
         return Response(svg, media_type="image/svg+xml")
+    if out_format in ("png", "pdf"):
+        try:
+            import cairosvg
+        except (ImportError, OSError) as e:
+            raise HTTPException(503, f"Conversione PDF/PNG non disponibile su questo server (libcairo mancante): {e}")
+
     if out_format == "png":
         png = cairosvg.svg2png(bytestring=svg.encode("utf-8"), dpi=300)
         return Response(png, media_type="image/png")
